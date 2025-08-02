@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NCI Gadi HPC Service Unit (SU) Calculator</title>
+  <style>
+    :root {
+      --primary-color: #0052CC;
+      --primary-hover: #0047B3;
+      --light-bg: #f5f5f5;
+      --result-bg: #E3F2FD;
+      --border-color: #ddd;
+      --error-color: #D32F2F;
+      --error-bg: #FFEBEE;
+      --success-color: #388E3C;
+      --success-bg: #E8F5E9;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+      color: #333;
+    }
+    .calculator {
+      background-color: var(--light-bg);
+      border-radius: 8px;
+      padding: 25px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .form-group {
+      margin-bottom: 18px;
+    }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    input[type="number"], select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    button {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 500;
+    }
+    .result {
+      margin-top: 24px;
+      padding: 20px;
+      background-color: var(--result-bg);
+      border-radius: 6px;
+      display: none;
+    }
+    .error {
+      color: var(--error-color);
+      background-color: var(--error-bg);
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+      display: none;
+    }
+    .formula {
+      margin-top: 12px;
+      padding: 10px 16px;
+      background-color: var(--result-bg);
+      border-left: 4px solid var(--primary-color);
+      border-radius: 4px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .block-warning {
+      color: white;
+      background-color: #c62828;
+      padding: 12px;
+      margin-top: 24px;
+      border-radius: 4px;
+      font-weight: bold;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="calculator">
+    <h2>NCI Gadi HPC SU Calculator</h2>
+    <div id="error-message" class="error"></div>
+    <div class="form-group">
+      <label for="queue">Queue:</label>
+      <select id="queue" onchange="updateHelpText()">
+        <option value="normal">normal</option>
+        <option value="express">express</option>
+        <option value="hugemem">hugemem</option>
+        <option value="megamem">megamem</option>
+        <option value="normalbw">normalbw</option>
+        <option value="expressbw">expressbw</option>
+        <option value="normalsl">normalsl</option>
+        <option value="normalsr">normalsr</option>
+        <option value="expresssr">expresssr</option>
+        <option value="gpuvolta">gpuvolta</option>
+        <option value="dgxa100">dgxa100</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="cores">Cores per node requested:</label>
+      <input type="number" id="cores" value="48">
+      <small id="cores-help-text" style="display:block; margin-top:4px; color:#555;"></small>
+    </div>
+    <div class="form-group">
+      <label for="memory">Memory requested (GB):</label>
+      <input type="number" id="memory" value="128">
+    </div>
+    <div class="form-group">
+      <label for="nodes">Number of nodes:</label>
+      <input type="number" id="nodes" value="1">
+    </div>
+    <div class="form-group">
+      <label for="hours">Walltime (hours):</label>
+      <input type="number" id="hours" value="1" step="0.1">
+    </div>
+    <div class="form-group">
+      <label for="gpus">GPUs (if applicable):</label>
+      <input type="number" id="gpus" value="0">
+    </div>
+    <button id="calculateBtn">Calculate</button>
+    <div class="result" id="result">
+      <h3>Estimated SU Usage</h3>
+      <p id="su-output"></p>
+      <p id="details"></p>
+      <p id="warning" style="color:#d17c00; font-weight:500; margin-top: 10px;"></p>
+      <div class="formula">
+        <strong>Formula:</strong><br/>
+        <code>rate × (ncpus_request × max[1, (ncpus_per_node/mem_per_node) × (mem_request/ncpus_request)]) × hours / ncpus_per_node</code><br/>
+        For GPU jobs: <code>rate × (gpus_requested / gpus_per_node) × nodes × hours</code>
+      </div>
+    </div>
+    <div id="hard-error" class="block-warning"></div>
+  </div>
+  <div style="margin-top: 16px; font-size: 14px; color: #444;">
+    <p>📚 Learn more about <a href="https://opus.nci.org.au/spaces/Help/pages/90308823/Queue+Limits" target="_blank">queue limits</a> and the <a href="https://opus.nci.org.au/spaces/Help/pages/119964320/Definition+Service+Unit+SU" target="_blank">SU formula used by NCI</a>.</p>
+    <p>🔧 This tool was developed by the <a href="https://www.sydney.edu.au/research/facilities/sydney-informatics-hub.html" target="_blank">Sydney Informatics Hub, University of Sydney</a>.</p>
+    <p>💾 To contact us for support, <a href="https://sih.tools/request" target="_blank">log a ticket</a>.</p>
+  </div>
+  <script>
+    function updateHelpText() {
+      const queue = document.getElementById("queue").value;
+      const helpText = document.getElementById("cores-help-text");
+      const maxCoresPerQueue = {
+        normal: 48,
+        express: 48,
+        hugemem: 48,
+        megamem: 48,
+        normalbw: 28,
+        expressbw: 28,
+        normalsl: 36,
+        normalsr: 36,
+        expresssr: 36,
+        gpuvolta: 48,
+        dgxa100: 128
+      };
+      helpText.innerText = queue in maxCoresPerQueue ? `Max ${maxCoresPerQueue[queue]} cores per node for '${queue}' queue.` : "";
+    }
+
+    document.getElementById("calculateBtn").addEventListener("click", function() {
+      const queue = document.getElementById("queue").value;
+      const cores = parseInt(document.getElementById("cores").value);
+      const memory = parseFloat(document.getElementById("memory").value);
+      const nodes = parseInt(document.getElementById("nodes").value);
+      const hours = parseFloat(document.getElementById("hours").value);
+      const gpus = parseInt(document.getElementById("gpus").value);
+      const suOutput = document.getElementById("su-output");
+      const details = document.getElementById("details");
+      const warning = document.getElementById("warning");
+      const result = document.getElementById("result");
+      const blockWarning = document.getElementById("hard-error");
+
+      const queueParams = {
+        normal: { rate: 2.0, cores: 48, mem: 192 },
+        express: { rate: 6.0, cores: 48, mem: 192 },
+        hugemem: { rate: 3.0, cores: 48, mem: 3072 },
+        megamem: { rate: 5.0, cores: 48, mem: 6144 },
+        normalbw: { rate: 1.25, cores: 28, mem: 128 },
+        expressbw: { rate: 3.75, cores: 28, mem: 128 },
+        hugemembw: { rate: 1.25, cores: 28, mem: 1020 },
+        megamembw: { rate: 1.25, cores: 64, mem: 3000 },
+        normalsl: { rate: 1.5, cores: 32, mem: 192 },
+        normalsr: { rate: 2.0, cores: 104, mem: 192 },
+        expresssr: { rate: 6.0, cores: 104, mem: 192 },
+        gpuvolta: { rate: 3.0, cores: 48, mem: 384, gpusPerNode: 4 },
+        dgxa100: { rate: 4.5, cores: 128, mem: 2000, gpusPerNode: 8 },
+        copyq: { rate: 2.0, cores: 1, mem: 190 },
+      };
+
+      const q = queueParams[queue];
+      if (!q) return;
+
+      if (cores > q.cores) {
+        result.style.display = "none";
+        blockWarning.style.display = "block";
+        blockWarning.innerText = `❌ Requested ${cores} cores per node exceeds the maximum allowed (${q.cores}) for the '${queue}' queue.`;
+        return;
+      } else {
+        blockWarning.style.display = "none";
+      }
+
+      let su = 0;
+      if (gpus > 0 && q.gpusPerNode) {
+        su = q.rate * (gpus / q.gpusPerNode) * nodes * hours;
+      } else {
+        const resourceUnits = cores * Math.max(1, (q.cores / q.mem) * (memory / (cores * nodes)));
+        su = q.rate * resourceUnits * hours / q.cores;
+      }
+
+      suOutput.innerText = `${su.toFixed(2)} SUs`;
+      details.innerText = `Queue: ${queue}, Cores: ${cores}, Memory: ${memory} GB, Nodes: ${nodes}, Hours: ${hours}, GPUs: ${gpus}`;
+      warning.innerText = (cores < q.cores || (memory / nodes) < 0.9 * q.mem) ?
+        "⚠️ Warning: Your job may be underutilising resources. NCI may charge based on full-node usage." : "";
+      result.style.display = "block";
+    });
+  </script>
+</body>
+</html>
