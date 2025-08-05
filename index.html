@@ -139,8 +139,8 @@
       <p id="warning" style="color:#d17c00; font-weight:500; margin-top: 10px;"></p>
       <div class="formula">
         <strong>Formula:</strong><br/>
-        <code>rate × (ncpus_request × max[1, (ncpus_per_node/mem_per_node) × (mem_request/ncpus_request)]) × hours / ncpus_per_node</code><br/>
-        For GPU jobs: <code>rate × (gpus_requested / gpus_per_node) × nodes × hours</code>
+        <code>CPU jobs: SU = rate × (cores × nodes) × hours</code><br/>
+        <code>GPU jobs: SU = rate × (GPUs × nodes) × hours</code>
       </div>
     </div>
     <div id="hard-error" class="block-warning"></div>
@@ -214,15 +214,15 @@
 
       let su = 0;
       if (gpus > 0 && q.gpusPerNode) {
-        su = q.rate * (gpus / q.gpusPerNode) * nodes * hours;
+        // GPU jobs: per-GPU-hour
+        su = q.rate * gpus * nodes * hours;
       } else {
-        const resourceUnits = cores * Math.max(1, (q.cores / q.mem) * (memory / (cores * nodes)));
-        su = q.rate * resourceUnits * hours / q.cores;
+        // CPU jobs: per-CPU-hour
+        su = q.rate * cores * nodes * hours;
       }
-
       suOutput.innerText = `${su.toFixed(2)} SUs`;
       details.innerText = `Queue: ${queue}, Cores: ${cores}, Memory: ${memory} GB, Nodes: ${nodes}, Hours: ${hours}, GPUs: ${gpus}`;
-      warning.innerText = (cores < q.cores || (memory / nodes) < 0.9 * q.mem) ?
+      warning.innerText = (cores < q.cores || (memory / nodes) < 0.5 * q.mem) ?
         "⚠️ Warning: Your job may be underutilising resources. NCI may charge based on full-node usage." : "";
       result.style.display = "block";
     });
