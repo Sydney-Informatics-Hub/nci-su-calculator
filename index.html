@@ -21,36 +21,36 @@
         <article>
             <header><strong>Resource Configuration</strong></header>
             
+            <label data-tooltip="Percentage of one node in use for the job, in increments of 1 CPU core + 4Gb Memory; or 1 GPU.">
+                Fair Share: <span id="fair-share-display">0</span>%
+                <input type="range" id="fair-share" min="0" max="100" value="0" step="0.1">
+            </label>
+            
             <div class="grid">
                 <label id="cpu-label">
-                    CPUs
+                    CPU cores
                     <input type="number" id="cpus" min="1">
                 </label>
-                <label id="mem-label">
-                    Memory (GB)
+                <label id="mem-label" data-tooltip="Memory must be a multiple of 4Gb">
+                    Memory (Gb)
                     <input type="number" id="mem" min="1">
                 </label>
-                <label id="gpu-label" style="display: none;">
+                <label id="gpu-label" data-tooltip="Must request a whole number of GPUs" style="display: none;">
                     GPUs
-                    <input type="number" id="gpus" min="0">
+                    <input type="number" id="gpus" min="1">
                 </label>
                 <label id="gpuram-label" style="display: none;">
-                    GPU RAM (GB)
+                    GPU RAM (Gb)
                     <input type="number" id="gpuram" min="0" disabled>
                 </label>
             </div>
 
-            <label>
-                Fair Share: <span id="fair-share-display">0</span>%
-                <input type="range" id="fair-share" min="0" max="100" value="0">
-            </label>
-
-            <label>
+            <label data-tooltip="Walltimes longer than the max for each queue can be requested by contacting the NCI helpdesk.">
                 Walltime (hours): <span id="walltime-display">1</span>
                 <input type="range" id="walltime" min="0.1" max="48" step="0.1" value="1">
             </label>
 
-            <label>
+            <label data-tooltip="Cost multiplier for requesting multiple nodes or for submitting many different jobs of this size.">
                 Nodes/Tasks
                 <input type="number" id="nodes" min="1" value="1">
             </label>
@@ -64,175 +64,6 @@
     </main>
 
     <script src="queues.js"></script>
-    <script>
-        const queueSelect = document.getElementById('queue');
-        const cpusInput = document.getElementById('cpus');
-        const memInput = document.getElementById('mem');
-        const gpusInput = document.getElementById('gpus');
-        const gpuramInput = document.getElementById('gpuram');
-        const fairShareSlider = document.getElementById('fair-share');
-        const fairShareDisplay = document.getElementById('fair-share-display');
-        const walltimeSlider = document.getElementById('walltime');
-        const walltimeDisplay = document.getElementById('walltime-display');
-        const nodesInput = document.getElementById('nodes');
-        const totalSuDisplay = document.getElementById('total-su');
-        const suPerNodeDisplay = document.getElementById('su-per-node');
-        const cpuLabel = document.getElementById('cpu-label');
-        const memLabel = document.getElementById('mem-label');
-        const gpuLabel = document.getElementById('gpu-label');
-        const gpuramLabel = document.getElementById('gpuram-label');
-
-        let currentQueue = null;
-        let updatingFromFairShare = false;
-
-        // Populate queue dropdown
-        for (const [queueName, params] of Object.entries(QUEUE_PARAMS)) {
-            const option = document.createElement('option');
-            option.value = queueName;
-            let label = `${queueName}: ${params.cores} cores, ${params.mem}GB, ${params.walltime}hr`;
-            if (params.gpus) {
-                label += `, ${params.gpus}gpu(${params.gpuram}GB)`;
-            }
-            label += `, ${params.rate}SU/core`;
-            option.textContent = label;
-            queueSelect.appendChild(option);
-        }
-
-        function isGpuQueue() {
-            return currentQueue && currentQueue.gpus;
-        }
-
-        function calculateFairShare() {
-            if (!currentQueue) return 0;
-            
-            const cpuShare = cpusInput.value / currentQueue.cores;
-            const memShare = memInput.value / currentQueue.mem;
-            
-            if (isGpuQueue()) {
-                const gpuShare = gpusInput.value / currentQueue.gpus;
-                const gpuramShare = gpuramInput.value / currentQueue.gpuram;
-                return Math.max(cpuShare, memShare, gpuShare, gpuramShare);
-            }
-            
-            return Math.max(cpuShare, memShare);
-        }
-
-        function updateFromFairShare() {
-            if (!currentQueue) return;
-            
-            updatingFromFairShare = true;
-            const share = fairShareSlider.value / 100;
-            
-            if (isGpuQueue()) {
-                const gpus = Math.max(1, Math.ceil(share * currentQueue.gpus));
-                const gpuShare = gpus / currentQueue.gpus;
-                
-                gpusInput.value = gpus;
-                cpusInput.value = Math.ceil(gpuShare * currentQueue.cores);
-                memInput.value = Math.ceil(gpuShare * currentQueue.mem);
-                gpuramInput.value = Math.ceil(gpuShare * currentQueue.gpuram);
-            } else {
-                cpusInput.value = Math.max(1, Math.ceil(share * currentQueue.cores));
-                memInput.value = Math.ceil(share * currentQueue.mem);
-            }
-            
-            updatingFromFairShare = false;
-            calculateCost();
-        }
-
-        function updateFairShareDisplay() {
-            if (updatingFromFairShare) return;
-            
-            const fairShare = calculateFairShare() * 100;
-            fairShareSlider.value = fairShare;
-            fairShareDisplay.textContent = fairShare.toFixed(1);
-            calculateCost();
-        }
-
-        function calculateCost() {
-            if (!currentQueue) return;
-            
-            const fairShare = calculateFairShare();
-            const effectiveCores = Math.ceil(fairShare * currentQueue.cores);
-            const walltime = parseFloat(walltimeSlider.value);
-            const nodes = parseInt(nodesInput.value);
-            
-            const suPerNode = effectiveCores * currentQueue.rate * walltime;
-            const totalSu = suPerNode * nodes;
-            
-            suPerNodeDisplay.textContent = suPerNode.toFixed(2);
-            totalSuDisplay.textContent = totalSu.toFixed(2);
-            fairShareDisplay.textContent = (fairShare * 100).toFixed(1);
-        }
-
-        function onQueueChange() {
-            currentQueue = QUEUE_PARAMS[queueSelect.value];
-            
-            walltimeSlider.max = currentQueue.walltime;
-            walltimeSlider.value = Math.min(walltimeSlider.value, currentQueue.walltime);
-            walltimeDisplay.textContent = walltimeSlider.value;
-            
-            if (isGpuQueue()) {
-                gpuLabel.style.display = 'block';
-                gpuramLabel.style.display = 'block';
-                cpuLabel.querySelector('input').disabled = true;
-                memLabel.querySelector('input').disabled = true;
-                
-                gpusInput.max = currentQueue.gpus;
-                gpusInput.value = 1;
-                
-                fairShareSlider.value = (1 / currentQueue.gpus) * 100;
-                updateFromFairShare();
-            } else {
-                gpuLabel.style.display = 'none';
-                gpuramLabel.style.display = 'none';
-                cpuLabel.querySelector('input').disabled = false;
-                memLabel.querySelector('input').disabled = false;
-                
-                cpusInput.max = currentQueue.cores;
-                cpusInput.value = 1;
-                memInput.max = currentQueue.mem;
-                memInput.value = Math.ceil(currentQueue.mem / currentQueue.cores);
-                
-                updateFairShareDisplay();
-            }
-        }
-
-        // Event listeners
-        queueSelect.addEventListener('change', onQueueChange);
-        
-        cpusInput.addEventListener('input', () => {
-            cpusInput.value = Math.min(Math.max(1, parseInt(cpusInput.value) || 1), currentQueue.cores);
-            updateFairShareDisplay();
-        });
-        
-        memInput.addEventListener('input', () => {
-            memInput.value = Math.min(Math.max(1, parseInt(memInput.value) || 1), currentQueue.mem);
-            updateFairShareDisplay();
-        });
-        
-        gpusInput.addEventListener('input', () => {
-            if (!isGpuQueue()) return;
-            gpusInput.value = Math.min(Math.max(1, parseInt(gpusInput.value) || 1), currentQueue.gpus);
-            const gpuShare = gpusInput.value / currentQueue.gpus;
-            fairShareSlider.value = gpuShare * 100;
-            updateFromFairShare();
-        });
-        
-        fairShareSlider.addEventListener('input', updateFromFairShare);
-        
-        walltimeSlider.addEventListener('input', () => {
-            walltimeDisplay.textContent = parseFloat(walltimeSlider.value).toFixed(1);
-            calculateCost();
-        });
-        
-        nodesInput.addEventListener('input', () => {
-            nodesInput.value = Math.max(1, parseInt(nodesInput.value) || 1);
-            calculateCost();
-        });
-
-        // Initialize
-        onQueueChange();
-    </script>
+    <script src="logic.js"></script>
 </body>
 </html>
