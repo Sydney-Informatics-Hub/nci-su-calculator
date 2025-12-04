@@ -23,17 +23,20 @@ function update(source) {
     let gpus = isGpu ? parseInt($('gpus').value) || 1 : 0;
     let fairShare = parseFloat($('fair-share').value) / 100;
 
-    // If fair share slider moved, calculate resources from it
-    if (source === 'fair-share') {
-        if (isGpu) {
-            gpus = Math.max(1, Math.ceil(fairShare * queue.gpus));
-            const share = gpus / queue.gpus;
-            cpus = Math.ceil(share * queue.cores);
-            mem = Math.ceil(share * queue.mem);
-        } else {
-            cpus = Math.max(1, Math.ceil(fairShare * queue.cores));
-            mem = Math.ceil(fairShare * queue.mem / 4) * 4;
-        }
+    // Only recalculate if not loading from URL
+    if (source !== 'url-load') {
+        // If fair share slider moved, calculate resources from it
+        if (source === 'fair-share') {
+    	    if (isGpu) {
+    	        gpus = Math.max(1, Math.ceil(fairShare * queue.gpus));
+    	        const share = gpus / queue.gpus;
+    	        cpus = Math.ceil(share * queue.cores);
+    	        mem = Math.ceil(share * queue.mem);
+    	    } else {
+    	        cpus = Math.max(1, Math.ceil(fairShare * queue.cores));
+    	        mem = Math.ceil(fairShare * queue.mem / 4) * 4;
+    	    }
+    	}
     }
     // If GPU input changed, calculate other GPU resources proportionally
     else if (source === 'gpus' && isGpu) {
@@ -172,7 +175,19 @@ function updateURL() {
     window.history.replaceState(null, '', newURL);
 }
 
-
+// Copy button functionality
+$('copy-btn').addEventListener('click', (e) => {
+    e.preventDefault();
+    const text = $('pbs-script').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = $('copy-btn');
+        const originalTooltip = btn.getAttribute('data-tooltip');
+        btn.setAttribute('data-tooltip', 'Copied!');
+        setTimeout(() => {
+            btn.setAttribute('data-tooltip', originalTooltip);
+        }, 2000);
+    });
+});
 
 // Single event listener setup with debouncing
 let timer;
@@ -192,19 +207,22 @@ $('disk').addEventListener('input', () => debounce(() => update('disk')));
 $('project').addEventListener('input', () => debounce(() => update('project')));
 
 // Initialize
-loadFromURL();
-onQueueChange();
+const params = new URLSearchParams(window.location.search);
+if (params.has('queue')) {
+    $('queue').value = params.get('queue');
+}
+queue = QUEUE_PARAMS[$('queue').value];
 
-// Copy button functionality
-$('copy-btn').addEventListener('click', (e) => {
-    e.preventDefault();
-    const text = $('pbs-script').textContent;
-    navigator.clipboard.writeText(text).then(() => {
-        const btn = $('copy-btn');
-        const originalTooltip = btn.getAttribute('data-tooltip');
-        btn.setAttribute('data-tooltip', 'Copied!');
-        setTimeout(() => {
-            btn.setAttribute('data-tooltip', originalTooltip);
-        }, 2000);
-    });
-});
+// Set up UI for the queue type
+const isGpu = !!queue.gpus;
+$('walltime').max = queue.walltime;
+$('gpu-label').style.display = isGpu ? 'block' : 'none';
+$('gpuram-label').style.display = isGpu ? 'block' : 'none';
+$('cpus').disabled = isGpu;
+$('mem').disabled = isGpu;
+
+// Load all other params
+loadFromURL();
+
+// Update display without recalculating
+update('url-load');
