@@ -1,0 +1,25 @@
+    /* Prevent horizontal overflow */
+    body {
+        overflow-x: hidden;
+    }
+    
+    main.container {
+        overflow-x: hidden;
+    }
+    
+    /* Fix pre element overflow */
+    #pbs-script {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+    
+    /* Ensure images don't cause overflow on mobile */
+    @media (max-width: 768px) {
+        a img {
+            max-width: 80px !important;
+        }
+        
+        a img[alt="SIH Logo"] {
+            margin-left: 6px;
+        }
+    }
