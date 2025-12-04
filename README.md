@@ -1,7 +1,9 @@
 # nci-su-calculator
 
-Janky service unit calculator for the NCI Gadi HPC. 
+Service unit calculator for the NCI Gadi HPC. 
 
-Heavily inspired by (copied from) the Pawsey counterpart, developed by our friend Sarah Beecroft: 
+Try an [example with 6 cores, 24Gb, 2hr walltime in project ab12](https://sydney-informatics-hub.github.io/nci-su-calculator/?queue=normal&cpus=6&mem=24&walltime=2&project=ab12)
 
-https://pawseysc.github.io/su-calculator/ 
+![Demo Image](assets/demo.png)
+
+Inspired by the Pawsey counterpart, developed by our friend Sarah Beecroft: https://pawseysc.github.io/su-calculator/
