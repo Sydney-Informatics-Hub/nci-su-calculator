@@ -15,6 +15,7 @@ const QUEUE_PARAMS = {
 
   gpuvolta: { rate: 3.0, cores: 48, mem: 384, disk: 400, walltime: 48, gpus: 4, gpuram: 160},
   dgxa100: { rate: 4.5, cores: 128, mem: 2000, disk: 28000, walltime: 48, gpus: 8, gpuram:  640},
+  gpuhopper: { rate: 7.5, cores: 48, mem: 1000, disk: 400, walltime: 48, gpus: 4, gpuram: 564},
 
   copyq: { rate: 2.0, cores: 1, mem: 190, disk: 200, walltime: 10}
 };
