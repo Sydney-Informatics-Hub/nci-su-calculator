@@ -3,6 +3,58 @@
         overflow-x: hidden;
     }
     
+    /* Dark mode styles */
+    [data-theme="dark"] {
+        --pico-background-color: #1a1a1a;
+        --pico-color: #e0e0e0;
+        --pico-card-background-color: #2d2d2d;
+        --pico-card-border-color: #404040;
+        --pico-primary: #ff9800;
+        --pico-primary-hover: #fb8c00;
+        --pico-primary-focus: rgba(255, 152, 0, 0.125);
+        --pico-form-element-background-color: #333;
+        --pico-form-element-border-color: #555;
+        --pico-form-element-color: #e0e0e0;
+        --pico-muted-color: #999;
+        --pico-muted-border-color: #444;
+    }
+    
+    [data-theme="dark"] article {
+        background-color: var(--pico-card-background-color);
+        border-color: var(--pico-card-border-color);
+    }
+    
+    [data-theme="dark"] pre {
+        background-color: #252525;
+        color: #e0e0e0;
+    }
+    
+    [data-theme="dark"] #recommendations-content {
+        color: inherit;
+    }
+    
+    /* Darker text for better readability in both modes */
+    #parallel-summary,
+    #parallel-summary * {
+        color: #2c3e50 !important;
+    }
+    
+    #pbs-script {
+        color: #2c3e50 !important;
+    }
+    
+    /* Warning text - all elements same color */
+    #warnings-container,
+    #warnings-container *,
+    #warnings-content,
+    #warnings-content * {
+        color: #2c3e50 !important;
+    }
+    
+    [data-theme="dark"] #warnings-container {
+        background-color: #f8d7da !important;
+    }
+    
     main.container {
         overflow-x: hidden;
     }

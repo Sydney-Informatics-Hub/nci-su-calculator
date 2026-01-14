@@ -22,6 +22,11 @@ function update(source) {
     let mem = parseInt($('mem').value) || 1;
     let gpus = isGpu ? parseInt($('gpus').value) || 1 : 0;
     let fairShare = parseFloat($('fair-share').value) / 100;
+    
+    // Enforce CPU maximum for the queue
+    if (cpus > queue.cores && source === 'cpus') {
+        cpus = queue.cores;
+    }
 
     // Only recalculate if not loading from URL
     if (source !== 'url-load') {
@@ -47,10 +52,7 @@ function update(source) {
 
     // Calculate fair share from resources
     const shares = [cpus / queue.cores, mem / queue.mem];
-    if (isGpu) {
-        shares.push(gpus / queue.gpus);
-        shares.push((gpus / queue.gpus * queue.gpuram) / queue.gpuram);
-    }
+    if (isGpu) shares.push(gpus / queue.gpus);
     fairShare = Math.max(...shares);
 
     // Write to inputs
@@ -72,38 +74,32 @@ function update(source) {
     
     $('su-per-task').textContent = suPerTask.toFixed(2);
     
-    // Check if parallel mode is enabled
+    const updateCosts = (su) => {
+        $('total-su').textContent = su.toFixed(2);
+        const ksu = su / 1000;
+        $('total-ksu').textContent = ksu.toFixed(2);
+        $('subsidised-cost').textContent = (ksu * 10.80).toFixed(2);
+    };
+    
     const parallelEnabled = $('enable-parallel').checked;
     
     if (parallelEnabled) {
-        calculateParallelJob(cpus, walltime, walltimeMinutes, suPerTask);
+        calculateParallelJob(cpus, walltime, walltimeMinutes, suPerTask, updateCosts);
     } else {
-        $('total-su').textContent = suPerTask.toFixed(2);
-        const ksu = suPerTask / 1000;
-        $('total-ksu').textContent = ksu.toFixed(2);
-        const cost = ksu * 10.80;
-        $('subsidised-cost').textContent = cost.toFixed(2);
+        updateCosts(suPerTask);
+        validateQueueLimits(cpus, 1, walltime, 1);
     }
     
     updateURL();
     updatePBSScript();
 }
 
-function calculateParallelJob(cpusPerTask, walltimeHours, walltimeMinutes, suPerTask) {
+function calculateParallelJob(cpusPerTask, walltimeHours, walltimeMinutes, suPerTask, updateCosts) {
     const totalTasks = parseInt($('total-tasks').value) || 1;
-    
-    // Calculate how many tasks can run on each node
     const tasksPerNode = Math.floor(queue.cores / cpusPerTask);
     
     if (tasksPerNode === 0) {
-        // Task is too large for a single node
-        $('tasks-per-node').textContent = '0 (task too large!)';
-        $('nodes-recommended').textContent = 'N/A';
-        $('tasks-concurrent').textContent = 'N/A';
-        $('num-batches').textContent = 'N/A';
-        $('total-walltime').textContent = 'N/A';
-        $('total-cpus-parallel').textContent = 'N/A';
-        
+        ['tasks-per-node', 'nodes-recommended', 'tasks-concurrent', 'num-batches', 'total-walltime', 'total-cpus-parallel'].forEach(id => $(id).textContent = id === 'tasks-per-node' ? '0 (task too large!)' : 'N/A');
         $('parallel-recommendations').style.display = 'block';
         $('recommendations-content').innerHTML = `<p style="margin: 0;">⚠️ Each task requires ${cpusPerTask} CPUs, but nodes in the <strong>${$('queue').value}</strong> queue only have ${queue.cores} cores. You need to reduce CPUs per task or choose a queue with larger nodes.</p>`;
         return;
@@ -219,34 +215,24 @@ function calculateParallelJob(cpusPerTask, walltimeHours, walltimeMinutes, suPer
     $('total-cpus-parallel').textContent = finalTotalCpus;
     
     // Calculate total SU
-    const totalSU = suPerTask * totalTasks;
-    $('total-su').textContent = totalSU.toFixed(2);
-    const ksu = totalSU / 1000;
-    $('total-ksu').textContent = ksu.toFixed(2);
-    const cost = ksu * 10.80;
-    $('subsidised-cost').textContent = cost.toFixed(2);
+    updateCosts(suPerTask * totalTasks);
     
-    // Show/hide recommendations
-    if (recommendations.length > 0) {
-        $('parallel-recommendations').style.display = 'block';
-        const pre = $('recommendations-content');
-        pre.textContent = recommendations.join('\n\n');
-        pre.style.backgroundColor = '#fff3cd';
-        pre.style.borderLeft = '4px solid #ffc107';
-        pre.style.color = '#856404';
-    } else {
-        $('parallel-recommendations').style.display = 'none';
+    // Show recommendations
+    const pre = $('recommendations-content');
+    const hasWarnings = recommendations.length > 0;
+    
+    if (!hasWarnings) {
         recommendations.push(`✅ Configuration Valid: Your job fits within all queue limits.`);
         recommendations.push(`   • ${finalConcurrent} tasks will run concurrently`);
         recommendations.push(`   • All ${totalTasks} tasks will complete in ${finalBatches} batch${finalBatches > 1 ? 'es' : ''}`);
         recommendations.push(`   • Total walltime: ${formatTime(finalWalltime * 60)}`);
-        $('parallel-recommendations').style.display = 'block';
-        const pre = $('recommendations-content');
-        pre.textContent = recommendations.join('\n\n');
-        pre.style.backgroundColor = '#d4edda';
-        pre.style.borderLeft = '4px solid #28a745';
-        pre.style.color = '#155724';
     }
+    
+    $('parallel-recommendations').style.display = 'block';
+    pre.textContent = recommendations.join('\n\n');
+    pre.style.backgroundColor = hasWarnings ? '#fff3cd' : '#d4edda';
+    pre.style.borderLeft = hasWarnings ? '4px solid #ffc107' : '4px solid #28a745';
+    pre.style.color = hasWarnings ? '#856404' : '#155724';
     
     // Validate with recommendations
     validateQueueLimits(cpusPerTask, recommendedNodes, finalWalltime, tasksPerNode);
@@ -264,6 +250,8 @@ function formatTime(minutes) {
 function validateQueueLimits(cpusPerNode, nodes, totalWalltime, tasksPerNode) {
     const warnings = [];
     const totalCpus = cpusPerNode * nodes;
+    const walltimeMinutes = parseInt($('walltime').value) || 60;
+    const walltimeHours = walltimeMinutes / 60;
     
     // Only validate if not in parallel mode or if there are actual issues
     const parallelEnabled = $('enable-parallel').checked;
@@ -273,9 +261,14 @@ function validateQueueLimits(cpusPerNode, nodes, totalWalltime, tasksPerNode) {
         return;
     }
     
+    // Check if walltime exceeds queue maximum
+    if (walltimeHours > queue.walltime) {
+        warnings.push(`Walltime exceeded: Requesting ${formatTime(walltimeMinutes)}, but the ${$('queue').value} queue has a maximum walltime of ${queue.walltime} hours.`);
+    }
+    
     // Check node limit (single task mode)
     if (queue.maxNodes && nodes > queue.maxNodes) {
-        warnings.push(`<strong>Nodes exceeded:</strong> Requesting ${nodes} nodes, but the <strong>${$('queue').value}</strong> queue has a maximum of ${queue.maxNodes} nodes per job.`);
+        warnings.push(`Nodes exceeded: Requesting ${nodes} nodes, but the ${$('queue').value} queue has a maximum of ${queue.maxNodes} nodes per job.`);
     }
     
     // Check NCPU limits with walltime restrictions (single task mode)
@@ -293,9 +286,9 @@ function validateQueueLimits(cpusPerNode, nodes, totalWalltime, tasksPerNode) {
         
         if (maxAllowed === 0) {
             const lastLimit = queue.ncpuLimits[queue.ncpuLimits.length - 1];
-            warnings.push(`<strong>NCPU exceeded:</strong> Requesting ${totalCpus} CPUs, but the maximum for <strong>${$('queue').value}</strong> queue is ${lastLimit.max} CPUs.`);
+            warnings.push(`NCPU exceeded: Requesting ${totalCpus} CPUs, but the maximum for ${$('queue').value} queue is ${lastLimit.max} CPUs.`);
         } else if (totalWalltime > maxWalltime) {
-            warnings.push(`<strong>Walltime exceeded:</strong> For ${totalCpus} CPUs on <strong>${$('queue').value}</strong> queue, maximum walltime is ${maxWalltime} hours, but total walltime needed is ${totalWalltime.toFixed(1)} hours.`);
+            warnings.push(`Walltime limit for CPU count: For ${totalCpus} CPUs on ${$('queue').value} queue, maximum walltime is ${maxWalltime} hours, but you requested ${totalWalltime.toFixed(1)} hours.`);
         }
     }
     
@@ -426,6 +419,11 @@ function onQueueChange() {
     const currentMinutes = parseInt($('walltime').value) || 60;
     $('walltime').value = Math.min(currentMinutes, queue.walltime * 60);
     
+    // Set CPU max to queue's core count
+    $('cpus').max = queue.cores;
+    const currentCpus = parseInt($('cpus').value) || 1;
+    $('cpus').value = Math.min(currentCpus, queue.cores);
+    
     $('gpu-label').style.display = isGpu ? 'block' : 'none';
     $('gpuram-label').style.display = isGpu ? 'block' : 'none';
     $('cpus').disabled = isGpu;
@@ -445,20 +443,19 @@ function onQueueChange() {
 // Read parameters from URL and set form values
 function loadFromURL() {
     const params = new URLSearchParams(window.location.search);
+    const fields = ['queue', 'cpus', 'mem', 'gpus', 'walltime', 'fairshare', 'project', 'disk', 'totaltasks'];
     
-    if (params.has('queue')) $('queue').value = params.get('queue');
-    if (params.has('cpus')) $('cpus').value = params.get('cpus');
-    if (params.has('mem')) $('mem').value = params.get('mem');
-    if (params.has('gpus')) $('gpus').value = params.get('gpus');
-    if (params.has('walltime')) $('walltime').value = params.get('walltime');
-    if (params.has('fairshare')) $('fair-share').value = params.get('fairshare');
-    if (params.has('project')) $('project').value = params.get('project');
-    if (params.has('disk')) $('disk').value = params.get('disk');
+    fields.forEach(field => {
+        if (params.has(field)) {
+            const id = field === 'fairshare' ? 'fair-share' : field === 'totaltasks' ? 'total-tasks' : field;
+            $(id).value = params.get(field);
+        }
+    });
+    
     if (params.has('parallel')) {
         $('enable-parallel').checked = params.get('parallel') === 'true';
         $('parallel-config').style.display = $('enable-parallel').checked ? 'block' : 'none';
     }
-    if (params.has('totaltasks')) $('total-tasks').value = params.get('totaltasks');
 }
 
 // Update URL with current form values
@@ -497,27 +494,19 @@ $('copy-btn').addEventListener('click', (e) => {
     });
 });
 
-// Single event listener setup with debouncing
+// Event listeners
 let timer;
-const debounce = (fn) => {
-    clearTimeout(timer);
-    timer = setTimeout(fn, 300);
-};
+const debounce = fn => { clearTimeout(timer); timer = setTimeout(fn, 300); };
 
 $('queue').addEventListener('change', onQueueChange);
 $('fair-share').addEventListener('input', () => update('fair-share'));
-$('cpus').addEventListener('input', () => debounce(() => update('cpus')));
-$('mem').addEventListener('input', () => debounce(() => update('mem')));
-$('gpus').addEventListener('input', () => debounce(() => update('gpus')));
-$('walltime').addEventListener('input', () => debounce(() => update('walltime')));
-$('disk').addEventListener('input', () => debounce(() => update('disk')));
-$('project').addEventListener('input', () => debounce(() => update('project')));
+['cpus', 'mem', 'gpus', 'walltime', 'disk', 'project', 'total-tasks'].forEach(id => 
+    $(id).addEventListener('input', () => debounce(() => update(id)))
+);
 $('enable-parallel').addEventListener('change', () => {
-    const enabled = $('enable-parallel').checked;
-    $('parallel-config').style.display = enabled ? 'block' : 'none';
+    $('parallel-config').style.display = $('enable-parallel').checked ? 'block' : 'none';
     update('parallel-toggle');
 });
-$('total-tasks').addEventListener('input', () => debounce(() => update('total-tasks')));
 
 // Initialize
 const params = new URLSearchParams(window.location.search);
@@ -529,6 +518,7 @@ queue = QUEUE_PARAMS[$('queue').value];
 // Set up UI for the queue type
 const isGpu = !!queue.gpus;
 $('walltime').max = queue.walltime * 60; // Convert hours to minutes
+$('cpus').max = queue.cores; // Set CPU max to queue's core count
 $('gpu-label').style.display = isGpu ? 'block' : 'none';
 $('gpuram-label').style.display = isGpu ? 'block' : 'none';
 $('cpus').disabled = isGpu;
@@ -539,3 +529,31 @@ loadFromURL();
 
 // Update display without recalculating
 update('url-load');
+
+// Theme toggle functionality
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    const isDark = savedTheme === 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    document.getElementById('theme-toggle').checked = isDark;
+    updateThemeLabel(isDark);
+}
+
+function updateThemeLabel(isDark) {
+    const label = document.getElementById('theme-label');
+    label.textContent = isDark ? '☀️ Light mode' : '🌙 Dark mode';
+}
+
+function toggleTheme() {
+    const checkbox = document.getElementById('theme-toggle');
+    const isDark = checkbox.checked;
+    const newTheme = isDark ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeLabel(isDark);
+}
+
+document.getElementById('theme-toggle').addEventListener('change', toggleTheme);
+
+// Initialize theme on page load
+initTheme();
