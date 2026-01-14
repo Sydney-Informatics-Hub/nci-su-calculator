@@ -32,7 +32,7 @@
         </article>
 
         <article>
-            <header><strong>Resource Configuration</strong></header>
+            <header><strong>Resource Configuration (Single Task)</strong></header>
             
             <label data-tooltip="Percentage of one node in use for the job, in increments of 1 CPU core + 4Gb Memory; or 1 GPU.">
                 Fair Share: <span id="fair-share-display">0</span>%
@@ -41,11 +41,11 @@
             
             <div class="grid">
                 <label id="cpu-label">
-                    CPU cores
+                    CPU cores per task
                     <input type="number" id="cpus" min="1">
                 </label>
                 <label id="mem-label" data-tooltip="Memory must be a multiple of 4Gb">
-                    Memory (Gb)
+                    Memory (Gb) per task
                     <input type="number" id="mem" min="1">
                 </label>
                 <label id="gpu-label" data-tooltip="Must request a whole number of GPUs" style="display: none;">
@@ -58,15 +58,10 @@
                 </label>
             </div>
 
-            <label data-tooltip="Walltimes longer than the max for each queue can be requested by contacting the NCI helpdesk.">
-                Walltime (hours): <span id="walltime-display">1</span>
-                <input type="range" id="walltime" min="0.1" max="48" step="0.1" value="1">
-            </label>
-
             <div class="grid">
-                <label data-tooltip="Cost multiplier for requesting multiple nodes or for submitting many different jobs of this size.">
-                    Nodes/Tasks (Optional)
-                    <input type="number" id="nodes" min="1" value="1">
+                <label data-tooltip="Walltimes longer than the max for each queue can be requested by contacting the NCI helpdesk.">
+                    Walltime per task (minutes)
+                    <input type="number" id="walltime" min="1" value="60">
                 </label>
                 
                 <label data-tooltip="Disk space needed on the compute node itself">
@@ -75,23 +70,62 @@
                 </label>
                 
                 <label data-tooltip="Your NCI project code">
-                    NCI Project Code (Optional)
+                    NCI Project Code
                     <input type="text" id="project" value="aa00">
                 </label>
             </div>
+        </article>
+
+        <article>
+            <header><strong>Parallel Job Configuration (Optional)</strong></header>
+            
+            <label>
+                <input type="checkbox" id="enable-parallel" role="switch">
+                Run multiple identical tasks in parallel
+            </label>
+
+            <div id="parallel-config" style="display: none; margin-top: 1rem;">
+                <label data-tooltip="Total number of identical tasks to run">
+                    How many tasks do you need to run?
+                    <input type="number" id="total-tasks" min="1" value="100">
+                </label>
+
+                <div id="parallel-summary" style="background-color: #f0f8ff; padding: 1rem; border-radius: 0.25rem; margin-top: 1rem;">
+                    <p style="margin: 0;"><strong>Parallel Job Summary:</strong></p>
+                    <p style="margin: 0.5rem 0 0 0;" id="parallel-info">
+                        • Tasks per node: <strong><span id="tasks-per-node">0</span></strong><br>
+                        • Nodes recommended: <strong><span id="nodes-recommended">0</span></strong><br>
+                        • Tasks running concurrently: <strong><span id="tasks-concurrent">0</span></strong><br>
+                        • Number of batches: <strong><span id="num-batches">0</span></strong><br>
+                        • Total walltime needed: <strong><span id="total-walltime">0</span></strong><br>
+                        • Total CPUs: <strong><span id="total-cpus-parallel">0</span></strong>
+                    </p>
+                </div>
+
+                <div id="parallel-recommendations" style="display: none; margin-top: 1rem;">
+                    <pre id="recommendations-content" style="background-color: #fff3cd; padding: 1rem; border-radius: 0.25rem; border-left: 4px solid #ffc107; color: #856404; overflow-x: auto; white-space: pre-wrap; font-family: inherit;"><code></code></pre>
+                </div>
+            </div>
+        </article>
+
+        <article id="warnings-container" style="display: none; background-color: #ffe6e6; border-left: 4px solid #ff4444;">
+            <header><strong>⚠️ Queue Limit Warnings</strong></header>
+            <div id="warnings-content"></div>
         </article>
 
         <div class="grid">
 
         <article>
             <header><strong>Cost Estimate</strong></header>
-            <p><strong>Total SU:</strong> <span id="total-su">0.00</span></p>
-            <p>SU per node/task: <span id="su-per-node">0.00</span></p>
+            <p><strong>SU per task:</strong> <span id="su-per-task">0.00</span></p>
+            <p id="total-su-display"><strong>Total SU:</strong> <span id="total-su">0.00</span></p>
+            <p><strong>Total KSU:</strong> <span id="total-ksu">0.00</span></p>
+            <p>At the subsidised rate of $10.80/KSU, your job costs <strong>$<span id="subsidised-cost">0.00</span></strong></p>
         </article>
         
         <article>
             <header>
-                <strong>PBS Script Header Example</strong>
+                <strong id="pbs-header-title">PBS Script Header Example</strong>
             </header>
             <div style="position: relative;">
                 <pre id="pbs-script" style="background-color: #f5f5f5; padding: 1rem; border-radius: 0.25rem; overflow-x: auto;"><code></code></pre>
