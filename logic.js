@@ -7,7 +7,7 @@ for (const [name, params] of Object.entries(QUEUE_PARAMS)) {
     option.value = name;
     let label = `${name}: ${params.cores} cores, ${params.mem}GB, ${params.walltime}hr`;
     if (params.gpus) label += `, ${params.gpus}gpu(${params.gpuram}GB)`;
-    label += `, ${params.rate}SU/core`;
+    label += `, ${params.rate}SU/core, ${params.readable_name}`;
     option.textContent = label;
     $('queue').appendChild(option);
 }
