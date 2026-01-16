@@ -7,7 +7,7 @@ for (const [name, params] of Object.entries(QUEUE_PARAMS)) {
     option.value = name;
     let label = `${name}: ${params.cores} cores, ${params.mem}GB, ${params.walltime}hr`;
     if (params.gpus) label += `, ${params.gpus}gpu(${params.gpuram}GB)`;
-    label += `, ${params.rate}SU/core`;
+    label += `, ${params.rate}SU/core, ${params.readable_name}`;
     option.textContent = label;
     $('queue').appendChild(option);
 }
@@ -75,10 +75,29 @@ function update(source) {
     $('su-per-task').textContent = suPerTask.toFixed(2);
     
     const updateCosts = (su) => {
+        // KSU cost on NCI
         $('total-su').textContent = su.toFixed(2);
         const ksu = su / 1000;
+        const subsidised = ksu * 10.80;
         $('total-ksu').textContent = ksu.toFixed(2);
-        $('subsidised-cost').textContent = (ksu * 10.80).toFixed(2);
+        $('subsidised-cost').textContent = subsidised.toFixed(2);
+        
+        // Cloud comparison (AWS)
+        const cloud = queue?.cloud_alternative;
+        if (cloud && typeof cloud.on_demand_price_multiple === 'number' && cloud.pricing_link) {
+            const cloudCost = subsidised * cloud.on_demand_price_multiple;
+        
+            $('cloud-cost').textContent = cloudCost.toFixed(2);
+            $('cloud-cost-multiple').textContent = cloud.on_demand_price_multiple.toFixed(0);
+            $('cloud-cost-link').href = cloud.pricing_link;
+        
+            // If you later add other providers, you can optionally switch the link text here.
+            // $('cloud-cost-link').textContent = `run this job on ${cloud.provider || 'AWS'}`;
+        
+            $('cloud-cost-row').style.display = 'block';
+        } else {
+            $('cloud-cost-row').style.display = 'none';
+        }
     };
     
     const parallelEnabled = $('enable-parallel').checked;
