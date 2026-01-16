@@ -67,7 +67,7 @@
             </div>
 
             <div class="grid">
-                <label data-tooltip="Walltimes longer than the max for each queue can be requested by contacting the NCI helpdesk.">
+                <label data-tooltip="Contact NCI helpdesk to request walltimes longer than max.">
                     Walltime per task (minutes)
                     <input type="number" id="walltime" min="1" value="60">
                 </label>
@@ -129,6 +129,9 @@
             <p id="total-su-display"><strong>Total SU:</strong> <span id="total-su">0.00</span></p>
             <p><strong>Total KSU:</strong> <span id="total-ksu">0.00</span></p>
             <p>At the subsidised rate of $10.80/KSU, your job costs <strong>$<span id="subsidised-cost">0.00</span></strong></p>
+            <p id="cloud-cost-row" style="display:none;">
+  It would cost ≈<strong>$<span id="cloud-cost">0.00</span></strong> to run this job on <a id="cloud-cost-link" href="#" target="_blank" rel="noopener noreferrer">AWS</a>, which is <span id="cloud-cost-multiple">1.0</span>x the cost on NCI Gadi.
+</p>
         </article>
         
         <article>
